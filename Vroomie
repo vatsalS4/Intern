@@ -1,0 +1,885 @@
+package com.example.vroomie;
+
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.text.InputType;
+import android.text.method.ScrollingMovementMethod;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.*;
+import androidx.appcompat.app.AppCompatActivity;
+
+import java.text.SimpleDateFormat;
+import java.util.*;
+
+public class MainActivity extends AppCompatActivity {
+
+    EditText etName, etPickup, etDrop, etPhone, etNotes, etPromo;
+    Button btnRequestRide, btnCancelRide, btnCompleteRide, btnClearHistory, btnFareEstimate, btnShareRide, btnRateDriver, btnSOS, btnPromo;
+    TextView tvStatus, tvHistory, tvFare, tvDriver, tvEta, tvPromo, tvLoyalty;
+    StringBuilder rideHistory = new StringBuilder();
+    boolean rideRequested = false;
+    String currentRideInfo = "";
+    String currentDriver = "";
+    int currentFare = 0;
+    int currentEta = 0;
+    float currentRating = 0f;
+    int loyaltyPoints = 0;
+    boolean promoApplied = false;
+    Random random = new Random();
+
+    // Simulated driver pool
+    String[] driverNames = {"Alex", "Priya", "Sam", "Fatima", "John", "Mei", "Carlos", "Ava"};
+    int[] driverAvatars = {
+            android.R.drawable.sym_def_app_icon,
+            android.R.drawable.ic_menu_myplaces,
+            android.R.drawable.ic_menu_compass,
+            android.R.drawable.ic_menu_mylocation,
+            android.R.drawable.ic_menu_directions,
+            android.R.drawable.ic_menu_mapmode,
+            android.R.drawable.ic_menu_camera,
+            android.R.drawable.ic_menu_gallery
+    };
+
+    // Modern Material color palette
+    final String COLOR_PRIMARY = "#0061A8";
+    final String COLOR_PRIMARY_DARK = "#003366";
+    final String COLOR_ACCENT = "#FFB300";
+    final String COLOR_SUCCESS = "#00C853";
+    final String COLOR_DANGER = "#D32F2F";
+    final String COLOR_BG = "#F5F7FA";
+    final String COLOR_CARD = "#FFFFFF";
+    final String COLOR_TEXT = "#1A1A1A";
+    final String COLOR_SUBTLE = "#6D7587";
+    final String COLOR_HISTORY_BG = "#E3F2FD";
+    final String COLOR_BUTTON_TEXT = "#FFFFFF";
+    final String COLOR_SOS = "#FF1744";
+    final String COLOR_PROMO = "#00B8D4";
+    final String COLOR_LOYALTY = "#FFD600";
+    final String COLOR_DIVIDER = "#E0E0E0";
+    final String COLOR_GRADIENT_START = "#E0EAFC";
+    final String COLOR_GRADIENT_END = "#CFDEF3";
+    final String COLOR_CARD_SHADOW = "#1A000000";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Main container with gradient background
+        ScrollView scrollView = new ScrollView(this);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
+        scrollView.setLayoutParams(scrollParams);
+
+        LinearLayout mainLayout = new LinearLayout(this);
+        mainLayout.setOrientation(LinearLayout.VERTICAL);
+        mainLayout.setPadding(32, 48, 32, 32);
+
+        // Modern gradient background
+        GradientDrawable gradient = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.parseColor(COLOR_GRADIENT_START), Color.parseColor(COLOR_GRADIENT_END)});
+        scrollView.setBackground(gradient);
+
+        // App logo and title row
+        LinearLayout logoRow = new LinearLayout(this);
+        logoRow.setOrientation(LinearLayout.VERTICAL);
+        logoRow.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(android.R.drawable.ic_menu_mylocation);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(220, 220);
+        logo.setLayoutParams(logoParams);
+        logo.setBackground(makeCircleDrawable(COLOR_PRIMARY));
+        logo.setPadding(36, 36, 36, 36);
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        logo.setElevation(16f);
+        logoRow.addView(logo);
+
+        TextView tvTitle = new TextView(this);
+        tvTitle.setText("Vroomie");
+        tvTitle.setTextSize(44);
+        tvTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvTitle.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvTitle.setPadding(0, 24, 0, 0);
+        tvTitle.setGravity(Gravity.CENTER_HORIZONTAL);
+        logoRow.addView(tvTitle);
+
+        TextView tvSubtitle = new TextView(this);
+        tvSubtitle.setText("Your modern ride companion");
+        tvSubtitle.setTextSize(20);
+        tvSubtitle.setTextColor(Color.parseColor(COLOR_SUBTLE));
+        tvSubtitle.setGravity(Gravity.CENTER_HORIZONTAL);
+        logoRow.addView(tvSubtitle);
+
+        mainLayout.addView(logoRow);
+
+        // Whitespace
+        addSpacer(mainLayout, 36);
+
+        // Loyalty points and promo
+        LinearLayout loyaltyRow = new LinearLayout(this);
+        loyaltyRow.setOrientation(LinearLayout.HORIZONTAL);
+        loyaltyRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView ivLoyalty = new ImageView(this);
+        ivLoyalty.setImageResource(android.R.drawable.star_big_on);
+        ivLoyalty.setColorFilter(Color.parseColor(COLOR_LOYALTY));
+        LinearLayout.LayoutParams starParams = new LinearLayout.LayoutParams(64, 64);
+        starParams.setMargins(0, 0, 16, 0);
+        ivLoyalty.setLayoutParams(starParams);
+        loyaltyRow.addView(ivLoyalty);
+
+        tvLoyalty = new TextView(this);
+        tvLoyalty.setText("Loyalty: " + loyaltyPoints + " pts");
+        tvLoyalty.setTextSize(20);
+        tvLoyalty.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvLoyalty.setTextColor(Color.parseColor(COLOR_LOYALTY));
+        tvLoyalty.setPadding(0, 0, 36, 0);
+        loyaltyRow.addView(tvLoyalty);
+
+        tvPromo = new TextView(this);
+        tvPromo.setText("No promo");
+        tvPromo.setTextSize(20);
+        tvPromo.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvPromo.setTextColor(Color.parseColor(COLOR_PROMO));
+        tvPromo.setPadding(0, 0, 36, 0);
+        loyaltyRow.addView(tvPromo);
+
+        btnSOS = new Button(this);
+        btnSOS.setText("SOS");
+        styleButton(btnSOS, COLOR_SOS, COLOR_BUTTON_TEXT, 36, true, true);
+        btnSOS.setTextSize(18);
+        btnSOS.setPadding(36, 0, 36, 0);
+        loyaltyRow.addView(btnSOS);
+
+        mainLayout.addView(loyaltyRow);
+
+        // Whitespace
+        addSpacer(mainLayout, 28);
+
+        // Card for user info fields
+        LinearLayout cardUser = new LinearLayout(this);
+        cardUser.setOrientation(LinearLayout.VERTICAL);
+        cardUser.setBackground(makeCardDrawable());
+        cardUser.setPadding(48, 48, 48, 48);
+        cardUser.setElevation(16f);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 0, 0, 0);
+        cardUser.setLayoutParams(cardParams);
+
+        // Section: User Info
+        TextView tvUserSection = new TextView(this);
+        tvUserSection.setText("Your Details");
+        tvUserSection.setTextSize(24);
+        tvUserSection.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvUserSection.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvUserSection.setPadding(0, 0, 0, 24);
+        cardUser.addView(tvUserSection);
+
+        etName = new EditText(this);
+        etName.setHint("Your Name");
+        etName.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PERSON_NAME);
+        styleEditText(etName, COLOR_PRIMARY, 22, true);
+        cardUser.addView(etName);
+
+        etPhone = new EditText(this);
+        etPhone.setHint("Phone Number");
+        etPhone.setInputType(InputType.TYPE_CLASS_PHONE);
+        styleEditText(etPhone, COLOR_PRIMARY, 22, true);
+        cardUser.addView(etPhone);
+
+        // Divider
+        addDivider(cardUser);
+
+        // Section: Ride Info
+        TextView tvRideSection = new TextView(this);
+        tvRideSection.setText("Ride Details");
+        tvRideSection.setTextSize(24);
+        tvRideSection.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvRideSection.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvRideSection.setPadding(0, 24, 0, 24);
+        cardUser.addView(tvRideSection);
+
+        etPickup = new EditText(this);
+        etPickup.setHint("Pickup Location");
+        etPickup.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS);
+        styleEditText(etPickup, COLOR_SUCCESS, 22, true);
+        cardUser.addView(etPickup);
+
+        etDrop = new EditText(this);
+        etDrop.setHint("Drop Location");
+        etDrop.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS);
+        styleEditText(etDrop, COLOR_ACCENT, 22, true);
+        cardUser.addView(etDrop);
+
+        etNotes = new EditText(this);
+        etNotes.setHint("Notes for driver (optional)");
+        etNotes.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        etNotes.setMinLines(1);
+        etNotes.setMaxLines(3);
+        styleEditText(etNotes, COLOR_SUBTLE, 20, false);
+        cardUser.addView(etNotes);
+
+        // Divider
+        addDivider(cardUser);
+
+        // Promo code row
+        LinearLayout promoRow = new LinearLayout(this);
+        promoRow.setOrientation(LinearLayout.HORIZONTAL);
+        promoRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        etPromo = new EditText(this);
+        etPromo.setHint("Promo code");
+        etPromo.setInputType(InputType.TYPE_CLASS_TEXT);
+        styleEditText(etPromo, COLOR_PROMO, 20, false);
+        etPromo.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        promoRow.addView(etPromo);
+
+        btnPromo = new Button(this);
+        btnPromo.setText("Apply");
+        styleButton(btnPromo, COLOR_PROMO, COLOR_BUTTON_TEXT, 28, false, false);
+        btnPromo.setTextSize(18);
+        btnPromo.setPadding(28, 0, 28, 0);
+        promoRow.addView(btnPromo);
+
+        cardUser.addView(promoRow);
+
+        mainLayout.addView(cardUser);
+
+        // Whitespace
+        addSpacer(mainLayout, 36);
+
+        // Fare estimate and ETA row
+        LinearLayout fareRow = new LinearLayout(this);
+        fareRow.setOrientation(LinearLayout.HORIZONTAL);
+        fareRow.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        ImageView ivFare = new ImageView(this);
+        ivFare.setImageResource(android.R.drawable.ic_menu_directions);
+        ivFare.setColorFilter(Color.parseColor(COLOR_SUCCESS));
+        LinearLayout.LayoutParams fareIconParams = new LinearLayout.LayoutParams(64, 64);
+        fareIconParams.setMargins(0, 0, 20, 0);
+        ivFare.setLayoutParams(fareIconParams);
+        fareRow.addView(ivFare);
+
+        tvFare = new TextView(this);
+        tvFare.setText("Fare: --");
+        tvFare.setTextSize(22);
+        tvFare.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvFare.setTextColor(Color.parseColor(COLOR_SUCCESS));
+        tvFare.setPadding(0, 0, 36, 0);
+        fareRow.addView(tvFare);
+
+        tvEta = new TextView(this);
+        tvEta.setText("ETA: --");
+        tvEta.setTextSize(22);
+        tvEta.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvEta.setTextColor(Color.parseColor(COLOR_ACCENT));
+        fareRow.addView(tvEta);
+
+        btnFareEstimate = new Button(this);
+        btnFareEstimate.setText("Estimate");
+        styleButton(btnFareEstimate, COLOR_PRIMARY, COLOR_BUTTON_TEXT, 36, false, false);
+        btnFareEstimate.setTextSize(18);
+        btnFareEstimate.setPadding(36, 0, 36, 0);
+        fareRow.addView(btnFareEstimate);
+
+        mainLayout.addView(fareRow);
+
+        // Whitespace
+        addSpacer(mainLayout, 28);
+
+        // Button row
+        LinearLayout buttonRow = new LinearLayout(this);
+        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setGravity(Gravity.CENTER_HORIZONTAL);
+        buttonRow.setPadding(0, 36, 0, 0);
+
+        btnRequestRide = new Button(this);
+        btnRequestRide.setText("Request Ride");
+        styleButton(btnRequestRide, COLOR_SUCCESS, COLOR_BUTTON_TEXT, 44, true, true);
+        buttonRow.addView(btnRequestRide);
+
+        btnCancelRide = new Button(this);
+        btnCancelRide.setText("Cancel");
+        styleButton(btnCancelRide, COLOR_DANGER, COLOR_BUTTON_TEXT, 44, true, true);
+        btnCancelRide.setEnabled(false);
+        buttonRow.addView(btnCancelRide);
+
+        btnCompleteRide = new Button(this);
+        btnCompleteRide.setText("Complete");
+        styleButton(btnCompleteRide, COLOR_ACCENT, COLOR_BUTTON_TEXT, 44, true, true);
+        btnCompleteRide.setEnabled(false);
+        buttonRow.addView(btnCompleteRide);
+
+        mainLayout.addView(buttonRow);
+
+        // Whitespace
+        addSpacer(mainLayout, 28);
+
+        // Status
+        tvStatus = new TextView(this);
+        tvStatus.setText("No ride requested.");
+        tvStatus.setTextSize(22);
+        tvStatus.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvStatus.setTextColor(Color.parseColor(COLOR_TEXT));
+        tvStatus.setPadding(0, 44, 0, 28);
+        tvStatus.setGravity(Gravity.CENTER_HORIZONTAL);
+        mainLayout.addView(tvStatus);
+
+        // Whitespace
+        addSpacer(mainLayout, 12);
+
+        // Card for driver info
+        LinearLayout cardDriver = new LinearLayout(this);
+        cardDriver.setOrientation(LinearLayout.HORIZONTAL);
+        cardDriver.setGravity(Gravity.CENTER_VERTICAL);
+        cardDriver.setBackground(makeCardDrawable());
+        cardDriver.setPadding(36, 36, 36, 36);
+        cardDriver.setElevation(14f);
+        LinearLayout.LayoutParams cardDriverParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardDriverParams.setMargins(0, 0, 0, 36);
+        cardDriver.setLayoutParams(cardDriverParams);
+
+        ImageView ivDriver = new ImageView(this);
+        ivDriver.setImageResource(android.R.drawable.sym_def_app_icon);
+        LinearLayout.LayoutParams driverImgParams = new LinearLayout.LayoutParams(128, 128);
+        driverImgParams.setMargins(0, 0, 36, 0);
+        ivDriver.setLayoutParams(driverImgParams);
+        ivDriver.setBackground(makeCircleDrawable(COLOR_PRIMARY));
+        ivDriver.setPadding(24, 24, 24, 24);
+        ivDriver.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        cardDriver.addView(ivDriver);
+
+        tvDriver = new TextView(this);
+        tvDriver.setText("Driver: --");
+        tvDriver.setTextSize(22);
+        tvDriver.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvDriver.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        cardDriver.addView(tvDriver);
+
+        btnShareRide = new Button(this);
+        btnShareRide.setText("Share Ride");
+        styleButton(btnShareRide, "#6C63FF", COLOR_BUTTON_TEXT, 28, false, false);
+        btnShareRide.setTextSize(16);
+        btnShareRide.setPadding(24, 0, 24, 0);
+        btnShareRide.setEnabled(false);
+        cardDriver.addView(btnShareRide);
+
+        btnRateDriver = new Button(this);
+        btnRateDriver.setText("Rate Driver");
+        styleButton(btnRateDriver, COLOR_ACCENT, COLOR_BUTTON_TEXT, 28, false, false);
+        btnRateDriver.setTextSize(16);
+        btnRateDriver.setPadding(24, 0, 24, 0);
+        btnRateDriver.setEnabled(false);
+        cardDriver.addView(btnRateDriver);
+
+        mainLayout.addView(cardDriver);
+
+        // Whitespace
+        addSpacer(mainLayout, 12);
+
+        // Ride History label and clear button
+        LinearLayout historyHeader = new LinearLayout(this);
+        historyHeader.setOrientation(LinearLayout.HORIZONTAL);
+        historyHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView ivHistory = new ImageView(this);
+        ivHistory.setImageResource(android.R.drawable.ic_menu_recent_history);
+        ivHistory.setColorFilter(Color.parseColor(COLOR_PRIMARY));
+        LinearLayout.LayoutParams histIconParams = new LinearLayout.LayoutParams(64, 64);
+        histIconParams.setMargins(0, 0, 20, 0);
+        ivHistory.setLayoutParams(histIconParams);
+        historyHeader.addView(ivHistory);
+
+        TextView tvHistoryLabel = new TextView(this);
+        tvHistoryLabel.setText("Ride History");
+        tvHistoryLabel.setTextSize(24);
+        tvHistoryLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tvHistoryLabel.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvHistoryLabel.setPadding(0, 28, 0, 12);
+        historyHeader.addView(tvHistoryLabel);
+
+        btnClearHistory = new Button(this);
+        btnClearHistory.setText("Clear");
+        styleButton(btnClearHistory, "#BDBDBD", COLOR_TEXT, 24, false, false);
+        btnClearHistory.setTextSize(16);
+        btnClearHistory.setPadding(24, 0, 24, 0);
+        historyHeader.addView(btnClearHistory);
+
+        mainLayout.addView(historyHeader);
+
+        // Ride History scrollable
+        TextView tvHistory = new TextView(this);
+        tvHistory.setText("No rides yet.");
+        tvHistory.setTextSize(20);
+        tvHistory.setTextColor(Color.parseColor(COLOR_TEXT));
+        tvHistory.setBackground(makeCardDrawable());
+        tvHistory.setPadding(28, 20, 28, 20);
+        tvHistory.setMovementMethod(new ScrollingMovementMethod());
+        LinearLayout.LayoutParams historyParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 440);
+        historyParams.setMargins(0, 0, 0, 0);
+        tvHistory.setLayoutParams(historyParams);
+        mainLayout.addView(tvHistory);
+
+        // Whitespace
+        addSpacer(mainLayout, 12);
+
+        // Add a tip feature
+        Button btnTip = new Button(this);
+        btnTip.setText("Tip Driver");
+        styleButton(btnTip, "#00C853", COLOR_BUTTON_TEXT, 32, false, false);
+        btnTip.setTextSize(18);
+        btnTip.setPadding(24, 0, 24, 0);
+        btnTip.setEnabled(false);
+        mainLayout.addView(btnTip);
+
+        // Whitespace
+        addSpacer(mainLayout, 12);
+
+        // Add a feedback feature
+        Button btnFeedback = new Button(this);
+        btnFeedback.setText("Send Feedback");
+        styleButton(btnFeedback, "#3949AB", COLOR_BUTTON_TEXT, 32, false, false);
+        btnFeedback.setTextSize(18);
+        btnFeedback.setPadding(24, 0, 24, 0);
+        mainLayout.addView(btnFeedback);
+
+        // Whitespace at bottom
+        addSpacer(mainLayout, 44);
+
+        scrollView.addView(mainLayout);
+        setContentView(scrollView);
+
+        // Button listeners
+        btnFareEstimate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String pickup = etPickup.getText().toString().trim();
+                String drop = etDrop.getText().toString().trim();
+                if (pickup.isEmpty() || drop.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Enter pickup and drop locations", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                int fare = estimateFare(pickup, drop);
+                int eta = estimateEta(pickup, drop);
+                if (promoApplied) fare = (int) (fare * 0.8);
+                tvFare.setText("Fare: ₹" + fare);
+                tvEta.setText("ETA: " + eta + " min");
+                currentFare = fare;
+                currentEta = eta;
+            }
+        });
+
+        btnRequestRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String name = etName.getText().toString().trim();
+                String phone = etPhone.getText().toString().trim();
+                String pickup = etPickup.getText().toString().trim();
+                String drop = etDrop.getText().toString().trim();
+                String notes = etNotes.getText().toString().trim();
+
+                if (name.isEmpty() || phone.isEmpty() || pickup.isEmpty() || drop.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Please fill all fields", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                if (rideRequested) {
+                    Toast.makeText(MainActivity.this, "You already have a ride requested!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Assign random driver
+                int idx = random.nextInt(driverNames.length);
+                currentDriver = driverNames[idx];
+                ivDriver.setImageResource(driverAvatars[idx]);
+                tvDriver.setText("Driver: " + currentDriver);
+
+                // Estimate fare/eta if not done
+                if (currentFare == 0 || currentEta == 0) {
+                    currentFare = estimateFare(pickup, drop);
+                    if (promoApplied) currentFare = (int) (currentFare * 0.8);
+                    currentEta = estimateEta(pickup, drop);
+                    tvFare.setText("Fare: ₹" + currentFare);
+                    tvEta.setText("ETA: " + currentEta + " min");
+                }
+
+                rideRequested = true;
+                btnRequestRide.setEnabled(false);
+                btnCancelRide.setEnabled(true);
+                btnCompleteRide.setEnabled(true);
+                btnShareRide.setEnabled(true);
+                btnRateDriver.setEnabled(false);
+                btnTip.setEnabled(false);
+
+                String time = new SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(new Date());
+                currentRideInfo = "Name: " + name + "\nPhone: " + phone + "\nFrom: " + pickup + "\nTo: " + drop +
+                        "\nNotes: " + (notes.isEmpty() ? "None" : notes) +
+                        "\nDriver: " + currentDriver +
+                        "\nFare: ₹" + currentFare +
+                        "\nETA: " + currentEta + " min" +
+                        "\nRequested at: " + time +
+                        "\nStatus: Requested\n";
+                tvStatus.setText("Ride requested!\nDriver " + currentDriver + " is on the way to " + pickup + ".");
+                tvStatus.setTextColor(Color.parseColor(COLOR_PRIMARY));
+                Toast.makeText(MainActivity.this, "Ride requested! Driver is on the way.", Toast.LENGTH_LONG).show();
+            }
+        });
+
+        btnCancelRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!rideRequested) {
+                    Toast.makeText(MainActivity.this, "No active ride to cancel.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                rideRequested = false;
+                btnRequestRide.setEnabled(true);
+                btnCancelRide.setEnabled(false);
+                btnCompleteRide.setEnabled(false);
+                btnShareRide.setEnabled(false);
+                btnRateDriver.setEnabled(false);
+                btnTip.setEnabled(false);
+                tvStatus.setText("Ride cancelled.");
+                tvStatus.setTextColor(Color.parseColor(COLOR_DANGER));
+                String cancelledRide = currentRideInfo.replace("Status: Requested", "Status: Cancelled") + "\n";
+                appendToHistory(cancelledRide, tvHistory);
+                currentRideInfo = "";
+                currentDriver = "";
+                ivDriver.setImageResource(android.R.drawable.sym_def_app_icon);
+                tvDriver.setText("Driver: --");
+                tvFare.setText("Fare: --");
+                tvEta.setText("ETA: --");
+                currentFare = 0;
+                currentEta = 0;
+                Toast.makeText(MainActivity.this, "Ride cancelled.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnCompleteRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!rideRequested) {
+                    Toast.makeText(MainActivity.this, "No active ride to complete.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                rideRequested = false;
+                btnRequestRide.setEnabled(true);
+                btnCancelRide.setEnabled(false);
+                btnCompleteRide.setEnabled(false);
+                btnShareRide.setEnabled(false);
+                btnRateDriver.setEnabled(true);
+                btnTip.setEnabled(true);
+                tvStatus.setText("Ride completed! Thank you for using Vroomie.");
+                tvStatus.setTextColor(Color.parseColor(COLOR_SUCCESS));
+                String completedRide = currentRideInfo.replace("Status: Requested", "Status: Completed") + "\n";
+                appendToHistory(completedRide, tvHistory);
+                currentRideInfo = "";
+                currentFare = 0;
+                currentEta = 0;
+                loyaltyPoints += 10;
+                tvLoyalty.setText("Loyalty: " + loyaltyPoints + " pts");
+                Toast.makeText(MainActivity.this, "Ride completed! +10 loyalty points.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnClearHistory.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                rideHistory = new StringBuilder();
+                tvHistory.setText("No rides yet.");
+                Toast.makeText(MainActivity.this, "History cleared.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnShareRide.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!rideRequested) {
+                    Toast.makeText(MainActivity.this, "No active ride to share.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String pickup = etPickup.getText().toString().trim();
+                String drop = etDrop.getText().toString().trim();
+                String msg = "I'm on a Vroomie ride from " + pickup + " to " + drop +
+                        ". Driver: " + currentDriver + ". Fare: ₹" + currentFare + ". ETA: " + currentEta + " min.";
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this, android.R.style.Theme_Material_Dialog_Alert);
+                builder.setTitle("Share Ride Details");
+                builder.setMessage(msg);
+                builder.setPositiveButton("OK", null);
+                builder.show();
+            }
+        });
+
+        btnRateDriver.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (currentDriver.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "No driver to rate.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                showRatingDialog();
+            }
+        });
+
+        btnSOS.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this, android.R.style.Theme_Material_Dialog_Alert);
+                builder.setTitle("Emergency SOS");
+                builder.setMessage("Are you sure you want to send an SOS alert?");
+                builder.setPositiveButton("Send SOS", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Toast.makeText(MainActivity.this, "SOS sent! Help is on the way.", Toast.LENGTH_LONG).show();
+                    }
+                });
+                builder.setNegativeButton("Cancel", null);
+                builder.show();
+            }
+        });
+
+        btnPromo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String promo = etPromo.getText().toString().trim();
+                if (promoApplied) {
+                    Toast.makeText(MainActivity.this, "Promo already applied!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (promo.equalsIgnoreCase("VROOM20")) {
+                    promoApplied = true;
+                    tvPromo.setText("Promo: 20% off");
+                    tvPromo.setTextColor(Color.parseColor(COLOR_SUCCESS));
+                    Toast.makeText(MainActivity.this, "Promo applied! 20% off on your next ride.", Toast.LENGTH_SHORT).show();
+                    // Recalculate fare if already estimated
+                    if (currentFare > 0) {
+                        currentFare = (int) (currentFare * 0.8);
+                        tvFare.setText("Fare: ₹" + currentFare);
+                    }
+                } else {
+                    Toast.makeText(MainActivity.this, "Invalid promo code.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        btnTip.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTipDialog();
+            }
+        });
+
+        btnFeedback.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showFeedbackDialog();
+            }
+        });
+    }
+
+    private void appendToHistory(String rideInfo, TextView tvHistory) {
+        if (rideHistory.length() == 0 || tvHistory.getText().toString().equals("No rides yet.")) {
+            rideHistory = new StringBuilder();
+        }
+        rideHistory.append(rideInfo).append("----------------------\n");
+        tvHistory.setText(rideHistory.toString());
+    }
+
+    private void styleEditText(EditText et, String color, int textSize, boolean bold) {
+        et.setTextSize(textSize);
+        et.setPadding(44, 36, 44, 36);
+        et.setBackground(makeRoundedDrawable(COLOR_CARD, color));
+        et.setTextColor(Color.parseColor(COLOR_TEXT));
+        et.setHintTextColor(Color.parseColor(color));
+        et.setTypeface(bold ? Typeface.create("sans-serif-medium", Typeface.BOLD) : Typeface.SANS_SERIF);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, 28);
+        et.setLayoutParams(params);
+    }
+
+    private void styleButton(Button btn, String bgColor, String textColor, int pad, boolean bold, boolean pill) {
+        btn.setTextColor(Color.parseColor(textColor));
+        btn.setTextSize(20);
+        btn.setAllCaps(false);
+        btn.setBackground(makeRoundedDrawable(bgColor, bgColor, pill));
+        btn.setTypeface(bold ? Typeface.create("sans-serif-medium", Typeface.BOLD) : Typeface.SANS_SERIF);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(20, 0, 20, 0);
+        btn.setLayoutParams(params);
+        btn.setElevation(8f);
+        btn.setPadding(pad, 20, pad, 20);
+    }
+
+    private int estimateFare(String pickup, String drop) {
+        // Simulate fare based on string length (for demo)
+        int base = 50;
+        int dist = Math.abs(pickup.length() - drop.length()) + 3 + random.nextInt(5);
+        return base + dist * 14;
+    }
+
+    private int estimateEta(String pickup, String drop) {
+        // Simulate ETA based on string length (for demo)
+        return 4 + Math.abs(pickup.length() - drop.length()) + random.nextInt(6);
+    }
+
+    private void showRatingDialog() {
+        final float[] selectedRating = {0f};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        builder.setTitle("Rate your driver (" + currentDriver + ")");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(56, 56, 56, 56);
+
+        final RatingBar ratingBar = new RatingBar(this, null, android.R.attr.ratingBarStyleIndicator);
+        ratingBar.setNumStars(5);
+        ratingBar.setStepSize(1f);
+        ratingBar.setIsIndicator(false);
+        layout.addView(ratingBar);
+
+        final TextView tv = new TextView(this);
+        tv.setText("Select rating");
+        tv.setPadding(0, 28, 0, 0);
+        layout.addView(tv);
+
+        ratingBar.setOnRatingBarChangeListener(new RatingBar.OnRatingBarChangeListener() {
+            @Override
+            public void onRatingChanged(RatingBar ratingBar, float rating, boolean fromUser) {
+                selectedRating[0] = rating;
+                tv.setText("Rating: " + rating + " star" + (rating == 1 ? "" : "s"));
+            }
+        });
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Submit", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                currentRating = selectedRating[0];
+                Toast.makeText(MainActivity.this, "You rated " + currentDriver + ": " + currentRating + " stars", Toast.LENGTH_SHORT).show();
+                btnRateDriver.setEnabled(false);
+                currentDriver = "";
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void showTipDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        builder.setTitle("Tip your driver");
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setHint("Enter tip amount (₹)");
+        builder.setView(input);
+
+        builder.setPositiveButton("Send Tip", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String tipStr = input.getText().toString().trim();
+                if (tipStr.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "No tip sent.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                int tip = Integer.parseInt(tipStr);
+                Toast.makeText(MainActivity.this, "You tipped ₹" + tip + " to your driver!", Toast.LENGTH_SHORT).show();
+                loyaltyPoints += tip / 10;
+                tvLoyalty.setText("Loyalty: " + loyaltyPoints + " pts");
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void showFeedbackDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        builder.setTitle("Send Feedback");
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setHint("Your feedback...");
+        builder.setView(input);
+
+        builder.setPositiveButton("Send", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String feedback = input.getText().toString().trim();
+                if (feedback.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "No feedback sent.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Toast.makeText(MainActivity.this, "Thank you for your feedback!", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    // Helper: Add vertical space
+    private void addSpacer(LinearLayout layout, int dp) {
+        Space space = new Space(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(dp));
+        space.setLayoutParams(params);
+        layout.addView(space);
+    }
+
+    // Helper: Add divider line
+    private void addDivider(LinearLayout layout) {
+        View divider = new View(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1));
+        params.setMargins(0, 24, 0, 24);
+        divider.setLayoutParams(params);
+        divider.setBackgroundColor(Color.parseColor(COLOR_DIVIDER));
+        layout.addView(divider);
+    }
+
+    // Helper: dp to px
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round((float) dp * density);
+    }
+
+    // Helper: Card background with rounded corners and shadow
+    private GradientDrawable makeCardDrawable() {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(COLOR_CARD));
+        drawable.setCornerRadius(dpToPx(28));
+        drawable.setStroke(dpToPx(1), Color.parseColor(COLOR_DIVIDER));
+        return drawable;
+    }
+
+    // Helper: Rounded background for EditText/Button
+    private GradientDrawable makeRoundedDrawable(String bgColor, String borderColor) {
+        return makeRoundedDrawable(bgColor, borderColor, false);
+    }
+    private GradientDrawable makeRoundedDrawable(String bgColor, String borderColor, boolean pill) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(bgColor));
+        drawable.setCornerRadius(pill ? dpToPx(100) : dpToPx(22));
+        drawable.setStroke(dpToPx(2), Color.parseColor(borderColor));
+        return drawable;
+    }
+
+    // Helper: Circle background for icons
+    private GradientDrawable makeCircleDrawable(String color) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(color));
+        drawable.setShape(GradientDrawable.OVAL);
+        return drawable;
+    }
+}
