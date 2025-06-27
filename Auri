@@ -1,0 +1,1072 @@
+package com.example.auri;
+
+import android.Manifest;
+import android.content.ContentUris;
+import android.content.pm.PackageManager;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.view.View;
+import android.widget.*;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import java.util.ArrayList;
+import android.view.ViewGroup;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
+import android.graphics.Typeface;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.os.Handler;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.graphics.PorterDuff;
+import android.content.Intent;
+import android.app.Activity;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.PopupMenu;
+import android.text.InputType;
+import android.text.TextUtils;
+import android.content.SharedPreferences;
+
+public class MainActivity extends AppCompatActivity {
+
+    private ListView auri_listView;
+    private ImageButton auri_playBtn;
+    private ImageButton auri_pauseBtn;
+    private ImageButton auri_stopBtn;
+    private ImageButton auri_nextBtn;
+    private ImageButton auri_prevBtn;
+    private ImageButton auri_shuffleBtn;
+    private ImageButton auri_repeatBtn;
+    private ImageButton auri_favBtn;
+    private ImageButton auri_searchBtn;
+    private SeekBar auri_seekBar;
+    private SeekBar auri_volumeBar;
+    private TextView auri_songTitle;
+    private TextView auri_artistTitle;
+    private TextView auri_timeCurrent;
+    private TextView auri_timeTotal;
+    private TextView auri_nowPlaying;
+    private Switch auri_darkModeSwitch;
+    private TextView auri_playlistLabel;
+    private Spinner auri_playlistSpinner;
+    private ImageButton auri_playlistMenuBtn;
+
+    private MediaPlayer auri_mediaPlayer = null;
+    private ArrayList<Song> auri_songList = new ArrayList<Song>();
+    private ArrayList<Song> auri_filteredSongList = new ArrayList<Song>();
+    private int auri_currentSongIndex = 0;
+    private boolean auri_isPaused = false;
+    private boolean auri_isShuffle = false;
+    private boolean auri_isRepeat = false;
+    private boolean auri_isDarkMode = true;
+    private boolean auri_isFav = false;
+    private String auri_currentPlaylist = "All Songs";
+    private ArrayList<String> auri_playlists = new ArrayList<String>();
+    private ArrayList<ArrayList<Song>> auri_playlistSongs = new ArrayList<ArrayList<Song>>();
+
+    private final int AURI_PERMISSION_REQUEST_CODE = 100;
+
+    private Runnable auri_seekBarRunnable;
+    private Handler auri_seekBarHandler;
+
+    private AudioManager auri_audioManager;
+
+    private SharedPreferences auri_prefs;
+
+    // Custom stop icon as fallback (since ic_media_stop is not available in all Android versions)
+    private static final int AURI_STOP_ICON = android.R.drawable.ic_menu_close_clear_cancel;
+
+    // Custom night mode icon (since ic_menu_night does not exist in Android)
+    private static final int AURI_NIGHT_ICON = android.R.drawable.ic_lock_idle_alarm;
+
+    // Custom favorite icon
+    private static final int AURI_FAV_ICON = android.R.drawable.btn_star_big_on;
+    private static final int AURI_FAV_OUTLINE_ICON = android.R.drawable.btn_star_big_off;
+
+    // Custom search icon
+    private static final int AURI_SEARCH_ICON = android.R.drawable.ic_menu_search;
+
+    // Custom playlist icon
+    private static final int AURI_PLAYLIST_ICON = android.R.drawable.ic_menu_agenda;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        auri_audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+
+        auri_prefs = getSharedPreferences("auri_prefs", MODE_PRIVATE);
+
+        // Modern Gradient background with subtle animation
+        GradientDrawable gradient = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[] {
+                        Color.parseColor("#232526"),
+                        Color.parseColor("#393E46"),
+                        Color.parseColor("#222831")
+                }
+        );
+        gradient.setCornerRadius(0f);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+
+        LinearLayout rootLayout = new LinearLayout(this);
+        rootLayout.setOrientation(LinearLayout.VERTICAL);
+        rootLayout.setBackground(gradient);
+        rootLayout.setPadding(32, 48, 32, 32);
+
+        // App Title with shadow and modern font
+        TextView auri_appTitle = new TextView(this);
+        auri_appTitle.setText("Auri");
+        auri_appTitle.setTextColor(Color.parseColor("#FFD369"));
+        auri_appTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 40f);
+        auri_appTitle.setTypeface(Typeface.SANS_SERIF, Typeface.BOLD);
+        auri_appTitle.setPadding(0, 0, 0, 12);
+        auri_appTitle.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        auri_appTitle.setShadowLayer(8, 0, 4, Color.parseColor("#222831"));
+        rootLayout.addView(auri_appTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Now Playing
+        auri_nowPlaying = new TextView(this);
+        auri_nowPlaying.setText("Now Playing");
+        auri_nowPlaying.setTextColor(Color.parseColor("#FFD369"));
+        auri_nowPlaying.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        auri_nowPlaying.setTypeface(Typeface.DEFAULT_BOLD);
+        auri_nowPlaying.setPadding(0, 0, 0, 2);
+        auri_nowPlaying.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        rootLayout.addView(auri_nowPlaying, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Song Title
+        auri_songTitle = new TextView(this);
+        auri_songTitle.setText("Auri Media Player");
+        auri_songTitle.setTextColor(Color.WHITE);
+        auri_songTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+        auri_songTitle.setTypeface(Typeface.SANS_SERIF, Typeface.BOLD);
+        auri_songTitle.setPadding(0, 0, 0, 2);
+        auri_songTitle.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        rootLayout.addView(auri_songTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Artist Title
+        auri_artistTitle = new TextView(this);
+        auri_artistTitle.setText("");
+        auri_artistTitle.setTextColor(Color.parseColor("#FFD369"));
+        auri_artistTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        auri_artistTitle.setTypeface(Typeface.SANS_SERIF, Typeface.ITALIC);
+        auri_artistTitle.setPadding(0, 0, 0, 20);
+        auri_artistTitle.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        rootLayout.addView(auri_artistTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // SeekBar Time Layout
+        LinearLayout timeLayout = new LinearLayout(this);
+        timeLayout.setOrientation(LinearLayout.HORIZONTAL);
+        timeLayout.setGravity(Gravity.CENTER_VERTICAL);
+
+        auri_timeCurrent = new TextView(this);
+        auri_timeCurrent.setText("00:00");
+        auri_timeCurrent.setTextColor(Color.parseColor("#FFD369"));
+        auri_timeCurrent.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        auri_timeCurrent.setPadding(0, 0, 8, 0);
+
+        auri_timeTotal = new TextView(this);
+        auri_timeTotal.setText("00:00");
+        auri_timeTotal.setTextColor(Color.parseColor("#FFD369"));
+        auri_timeTotal.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        auri_timeTotal.setPadding(8, 0, 0, 0);
+
+        timeLayout.addView(auri_timeCurrent, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f));
+        timeLayout.addView(new Space(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        timeLayout.addView(auri_timeTotal, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f));
+        rootLayout.addView(timeLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // SeekBar with modern style
+        auri_seekBar = new SeekBar(this);
+        auri_seekBar.setPadding(0, 0, 0, 20);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            auri_seekBar.setMinHeight(16);
+        }
+        if (auri_seekBar.getProgressDrawable() != null) {
+            auri_seekBar.getProgressDrawable().setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        }
+        if (auri_seekBar.getThumb() != null) {
+            auri_seekBar.getThumb().setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        }
+        rootLayout.addView(auri_seekBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Controls Layout
+        LinearLayout controlsLayout = new LinearLayout(this);
+        controlsLayout.setOrientation(LinearLayout.HORIZONTAL);
+        controlsLayout.setGravity(Gravity.CENTER);
+
+        int btnSize = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 56, getResources().getDisplayMetrics());
+        int btnMargin = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, getResources().getDisplayMetrics());
+
+        // Shuffle Button
+        auri_shuffleBtn = new ImageButton(this);
+        auri_shuffleBtn.setImageResource(android.R.drawable.ic_menu_rotate);
+        auri_shuffleBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_shuffleBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams shuffleParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        shuffleParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_shuffleBtn, shuffleParams);
+
+        // Previous Button
+        auri_prevBtn = new ImageButton(this);
+        auri_prevBtn.setImageResource(android.R.drawable.ic_media_previous);
+        auri_prevBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_prevBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams prevParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        prevParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_prevBtn, prevParams);
+
+        // Play Button
+        auri_playBtn = new ImageButton(this);
+        auri_playBtn.setImageResource(android.R.drawable.ic_media_play);
+        auri_playBtn.setBackground(makeRippleDrawable("#FFD369"));
+        auri_playBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        playParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_playBtn, playParams);
+
+        // Pause Button
+        auri_pauseBtn = new ImageButton(this);
+        auri_pauseBtn.setImageResource(android.R.drawable.ic_media_pause);
+        auri_pauseBtn.setBackground(makeRippleDrawable("#FFD369"));
+        auri_pauseBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams pauseParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        pauseParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_pauseBtn, pauseParams);
+
+        // Stop Button
+        auri_stopBtn = new ImageButton(this);
+        auri_stopBtn.setImageResource(AURI_STOP_ICON);
+        auri_stopBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_stopBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        stopParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_stopBtn, stopParams);
+
+        // Next Button
+        auri_nextBtn = new ImageButton(this);
+        auri_nextBtn.setImageResource(android.R.drawable.ic_media_next);
+        auri_nextBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_nextBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams nextParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        nextParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_nextBtn, nextParams);
+
+        // Repeat Button
+        auri_repeatBtn = new ImageButton(this);
+        auri_repeatBtn.setImageResource(android.R.drawable.ic_menu_revert);
+        auri_repeatBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_repeatBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams repeatParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        repeatParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_repeatBtn, repeatParams);
+
+        // Favorite Button
+        auri_favBtn = new ImageButton(this);
+        auri_favBtn.setImageResource(AURI_FAV_OUTLINE_ICON);
+        auri_favBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_favBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams favParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        favParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_favBtn, favParams);
+
+        // Search Button
+        auri_searchBtn = new ImageButton(this);
+        auri_searchBtn.setImageResource(AURI_SEARCH_ICON);
+        auri_searchBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_searchBtn.setPadding(24, 24, 24, 24);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        searchParams.setMargins(btnMargin, 0, btnMargin, 0);
+        controlsLayout.addView(auri_searchBtn, searchParams);
+
+        rootLayout.addView(controlsLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Volume Control with icon
+        LinearLayout volumeLayout = new LinearLayout(this);
+        volumeLayout.setOrientation(LinearLayout.HORIZONTAL);
+        volumeLayout.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView volumeIcon = new ImageView(this);
+        volumeIcon.setImageResource(android.R.drawable.ic_lock_silent_mode_off);
+        volumeIcon.setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        volumeIcon.setPadding(0, 0, 8, 0);
+        TextView volumeLabel = new TextView(this);
+        volumeLabel.setText("Volume");
+        volumeLabel.setTextColor(Color.parseColor("#FFD369"));
+        volumeLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
+        volumeLabel.setPadding(0, 0, 8, 0);
+        auri_volumeBar = new SeekBar(this);
+        auri_volumeBar.setMax(auri_audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+        auri_volumeBar.setProgress(auri_audioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
+        if (auri_volumeBar.getProgressDrawable() != null) {
+            auri_volumeBar.getProgressDrawable().setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        }
+        if (auri_volumeBar.getThumb() != null) {
+            auri_volumeBar.getThumb().setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        }
+        volumeLayout.addView(volumeIcon, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        volumeLayout.addView(volumeLabel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        volumeLayout.addView(auri_volumeBar, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        rootLayout.addView(volumeLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Dark Mode Switch with icon
+        LinearLayout darkModeLayout = new LinearLayout(this);
+        darkModeLayout.setOrientation(LinearLayout.HORIZONTAL);
+        darkModeLayout.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        ImageView darkIcon = new ImageView(this);
+        darkIcon.setImageResource(android.R.drawable.ic_menu_day);
+        darkIcon.setColorFilter(Color.parseColor("#FFD369"), PorterDuff.Mode.SRC_IN);
+        darkIcon.setPadding(0, 0, 8, 0);
+        auri_darkModeSwitch = new Switch(this);
+        auri_darkModeSwitch.setText("Dark Mode");
+        auri_darkModeSwitch.setChecked(true);
+        auri_darkModeSwitch.setTextColor(Color.parseColor("#FFD369"));
+        darkModeLayout.addView(darkIcon, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        darkModeLayout.addView(auri_darkModeSwitch, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        rootLayout.addView(darkModeLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Playlist Spinner and Menu
+        LinearLayout playlistLayout = new LinearLayout(this);
+        playlistLayout.setOrientation(LinearLayout.HORIZONTAL);
+        playlistLayout.setGravity(Gravity.CENTER_VERTICAL);
+
+        auri_playlistLabel = new TextView(this);
+        auri_playlistLabel.setText("Playlist:");
+        auri_playlistLabel.setTextColor(Color.parseColor("#FFD369"));
+        auri_playlistLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        auri_playlistLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        auri_playlistLabel.setPadding(0, 0, 8, 0);
+
+        auri_playlistSpinner = new Spinner(this, Spinner.MODE_DROPDOWN);
+        auri_playlists.add("All Songs");
+        auri_playlistSongs.add(auri_songList);
+        ArrayAdapter<String> playlistAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, auri_playlists);
+        playlistAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        auri_playlistSpinner.setAdapter(playlistAdapter);
+
+        auri_playlistMenuBtn = new ImageButton(this);
+        auri_playlistMenuBtn.setImageResource(AURI_PLAYLIST_ICON);
+        auri_playlistMenuBtn.setBackground(makeRippleDrawable("#232526"));
+        auri_playlistMenuBtn.setPadding(16, 16, 16, 16);
+
+        playlistLayout.addView(auri_playlistLabel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        playlistLayout.addView(auri_playlistSpinner, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        playlistLayout.addView(auri_playlistMenuBtn, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        rootLayout.addView(playlistLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // ListView with modern card style
+        auri_listView = new ListView(this);
+        auri_listView.setDividerHeight(0);
+        GradientDrawable listBg = new GradientDrawable();
+        listBg.setColor(Color.parseColor("#232526"));
+        listBg.setCornerRadius(36f);
+        listBg.setStroke(2, Color.parseColor("#FFD369"));
+        auri_listView.setBackground(listBg);
+        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        listParams.setMargins(0, 24, 0, 0);
+        rootLayout.addView(auri_listView, listParams);
+
+        scrollView.addView(rootLayout);
+        setContentView(scrollView);
+
+        auri_seekBarHandler = new Handler();
+
+        if (auri_checkPermission()) {
+            auri_loadSongs();
+        } else {
+            auri_requestPermission();
+        }
+
+        auri_playBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!auri_filteredSongList.isEmpty()) {
+                    if (auri_mediaPlayer == null) {
+                        auri_playSong(auri_currentSongIndex);
+                    } else if (auri_isPaused) {
+                        auri_mediaPlayer.start();
+                        auri_isPaused = false;
+                        auri_updateSeekBar();
+                        animateButton(auri_playBtn);
+                    }
+                }
+            }
+        });
+
+        auri_pauseBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (auri_mediaPlayer != null && auri_mediaPlayer.isPlaying()) {
+                    auri_mediaPlayer.pause();
+                    auri_isPaused = true;
+                    animateButton(auri_pauseBtn);
+                }
+            }
+        });
+
+        auri_stopBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                auri_stopPlayer();
+                animateButton(auri_stopBtn);
+            }
+        });
+
+        auri_nextBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!auri_filteredSongList.isEmpty()) {
+                    if (auri_isShuffle) {
+                        auri_currentSongIndex = (int) (Math.random() * auri_filteredSongList.size());
+                    } else {
+                        auri_currentSongIndex = (auri_currentSongIndex + 1) % auri_filteredSongList.size();
+                    }
+                    auri_playSong(auri_currentSongIndex);
+                    animateButton(auri_nextBtn);
+                }
+            }
+        });
+
+        auri_prevBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!auri_filteredSongList.isEmpty()) {
+                    if (auri_isShuffle) {
+                        auri_currentSongIndex = (int) (Math.random() * auri_filteredSongList.size());
+                    } else {
+                        auri_currentSongIndex = (auri_currentSongIndex - 1 < 0) ? auri_filteredSongList.size() - 1 : auri_currentSongIndex - 1;
+                    }
+                    auri_playSong(auri_currentSongIndex);
+                    animateButton(auri_prevBtn);
+                }
+            }
+        });
+
+        auri_shuffleBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                auri_isShuffle = !auri_isShuffle;
+                if (auri_isShuffle) {
+                    auri_shuffleBtn.setBackground(makeRippleDrawable("#FFD369"));
+                    Toast.makeText(MainActivity.this, "Shuffle On", Toast.LENGTH_SHORT).show();
+                } else {
+                    auri_shuffleBtn.setBackground(makeRippleDrawable("#232526"));
+                    Toast.makeText(MainActivity.this, "Shuffle Off", Toast.LENGTH_SHORT).show();
+                }
+                animateButton(auri_shuffleBtn);
+            }
+        });
+
+        auri_repeatBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                auri_isRepeat = !auri_isRepeat;
+                if (auri_isRepeat) {
+                    auri_repeatBtn.setBackground(makeRippleDrawable("#FFD369"));
+                    Toast.makeText(MainActivity.this, "Repeat On", Toast.LENGTH_SHORT).show();
+                } else {
+                    auri_repeatBtn.setBackground(makeRippleDrawable("#232526"));
+                    Toast.makeText(MainActivity.this, "Repeat Off", Toast.LENGTH_SHORT).show();
+                }
+                animateButton(auri_repeatBtn);
+            }
+        });
+
+        auri_favBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!auri_filteredSongList.isEmpty()) {
+                    Song song = auri_filteredSongList.get(auri_currentSongIndex);
+                    boolean isFav = auri_toggleFavorite(song);
+                    auri_favBtn.setImageResource(isFav ? AURI_FAV_ICON : AURI_FAV_OUTLINE_ICON);
+                    Toast.makeText(MainActivity.this, isFav ? "Added to Favorites" : "Removed from Favorites", Toast.LENGTH_SHORT).show();
+                    animateButton(auri_favBtn);
+                }
+            }
+        });
+
+        auri_searchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showSearchDialog();
+                animateButton(auri_searchBtn);
+            }
+        });
+
+        auri_listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                auri_currentSongIndex = position;
+                auri_playSong(auri_currentSongIndex);
+                animateListItem(view);
+            }
+        });
+
+        auri_seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && auri_mediaPlayer != null) {
+                    try {
+                        auri_mediaPlayer.seekTo(progress);
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        auri_volumeBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                auri_audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        auri_darkModeSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                auri_isDarkMode = isChecked;
+                auri_applyTheme();
+                if (auri_isDarkMode) {
+                    darkIcon.setImageResource(android.R.drawable.ic_menu_day);
+                } else {
+                    darkIcon.setImageResource(AURI_NIGHT_ICON);
+                }
+            }
+        });
+
+        auri_listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                Song song = auri_filteredSongList.get(position);
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setTitle("Song Info");
+                builder.setMessage("Title: " + song.title + "\nArtist: " + song.artist + "\n\nPlay this song?");
+                builder.setPositiveButton("Play", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        auri_currentSongIndex = position;
+                        auri_playSong(auri_currentSongIndex);
+                    }
+                });
+                builder.setNegativeButton("Add to Playlist", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        showAddToPlaylistDialog(song);
+                    }
+                });
+                builder.setNeutralButton("Cancel", null);
+                builder.show();
+                return true;
+            }
+        });
+
+        auri_playlistSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                auri_currentPlaylist = auri_playlists.get(position);
+                auri_updateFilteredSongList();
+                auri_currentSongIndex = 0;
+                auri_updateSongListView();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        auri_playlistMenuBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPlaylistMenu(v);
+            }
+        });
+    }
+
+    private void auri_applyTheme() {
+        if (auri_isDarkMode) {
+            getWindow().getDecorView().setBackgroundColor(Color.parseColor("#232526"));
+        } else {
+            getWindow().getDecorView().setBackgroundColor(Color.parseColor("#F5F5F5"));
+        }
+    }
+
+    private boolean auri_checkPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
+    private void auri_requestPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_MEDIA_AUDIO}, AURI_PERMISSION_REQUEST_CODE);
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, AURI_PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == AURI_PERMISSION_REQUEST_CODE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            auri_loadSongs();
+        } else {
+            Toast.makeText(this, "Permission denied!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void auri_loadSongs() {
+        auri_songList.clear();
+        Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+        String[] projection = {
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST
+        };
+        String selection = MediaStore.Audio.Media.IS_MUSIC + " != 0";
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, projection, selection, null, null);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    long id = cursor.getLong(0);
+                    String title = cursor.getString(1);
+                    String artist = cursor.getString(2);
+                    Uri contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
+                    auri_songList.add(new Song(title, artist, contentUri));
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Error loading songs: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        auri_updateFilteredSongList();
+        auri_updateSongListView();
+        if (!auri_filteredSongList.isEmpty()) {
+            auri_songTitle.setText(auri_filteredSongList.get(auri_currentSongIndex).title);
+            auri_artistTitle.setText(auri_filteredSongList.get(auri_currentSongIndex).artist);
+        } else {
+            auri_songTitle.setText("No songs found");
+            auri_artistTitle.setText("");
+        }
+    }
+
+    private void auri_updateFilteredSongList() {
+        if (auri_currentPlaylist.equals("All Songs")) {
+            auri_filteredSongList = new ArrayList<Song>(auri_songList);
+        } else if (auri_currentPlaylist.equals("Favorites")) {
+            auri_filteredSongList = auri_getFavoriteSongs();
+        } else {
+            int idx = auri_playlists.indexOf(auri_currentPlaylist);
+            if (idx >= 0 && idx < auri_playlistSongs.size()) {
+                auri_filteredSongList = new ArrayList<Song>(auri_playlistSongs.get(idx));
+            } else {
+                auri_filteredSongList = new ArrayList<Song>();
+            }
+        }
+    }
+
+    private void auri_updateSongListView() {
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_2, android.R.id.text1, auri_getSongTitles()) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView text1 = view.findViewById(android.R.id.text1);
+                TextView text2 = null;
+                try {
+                    text2 = view.findViewById(android.R.id.text2);
+                } catch (Exception e) {}
+                text1.setText(auri_filteredSongList.get(position).title);
+                text1.setTextColor(position == auri_currentSongIndex ? Color.parseColor("#FFD369") : Color.WHITE);
+                text1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f);
+                text1.setTypeface(Typeface.SANS_SERIF, Typeface.BOLD);
+                if (text2 != null) {
+                    text2.setText(auri_filteredSongList.get(position).artist);
+                    text2.setTextColor(Color.parseColor("#FFD369"));
+                    text2.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+                    text2.setTypeface(Typeface.SANS_SERIF, Typeface.ITALIC);
+                }
+                // Card effect for selected item
+                if (position == auri_currentSongIndex) {
+                    GradientDrawable selectedBg = new GradientDrawable();
+                    selectedBg.setColor(Color.parseColor("#393E46"));
+                    selectedBg.setCornerRadius(32f);
+                    selectedBg.setStroke(3, Color.parseColor("#FFD369"));
+                    view.setBackground(selectedBg);
+                } else {
+                    view.setBackgroundColor(Color.TRANSPARENT);
+                }
+                return view;
+            }
+        };
+        auri_listView.setAdapter(adapter);
+        if (!auri_filteredSongList.isEmpty()) {
+            auri_songTitle.setText(auri_filteredSongList.get(auri_currentSongIndex).title);
+            auri_artistTitle.setText(auri_filteredSongList.get(auri_currentSongIndex).artist);
+            auri_favBtn.setImageResource(auri_isFavorite(auri_filteredSongList.get(auri_currentSongIndex)) ? AURI_FAV_ICON : AURI_FAV_OUTLINE_ICON);
+        } else {
+            auri_songTitle.setText("No songs found");
+            auri_artistTitle.setText("");
+            auri_favBtn.setImageResource(AURI_FAV_OUTLINE_ICON);
+        }
+    }
+
+    private ArrayList<String> auri_getSongTitles() {
+        ArrayList<String> titles = new ArrayList<String>();
+        for (int i = 0; i < auri_filteredSongList.size(); i++) {
+            titles.add(auri_filteredSongList.get(i).title);
+        }
+        return titles;
+    }
+
+    private void auri_playSong(int index) {
+        auri_stopPlayer();
+        if (index < 0 || index >= auri_filteredSongList.size()) {
+            Toast.makeText(this, "Invalid song index", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Song song = auri_filteredSongList.get(index);
+        auri_songTitle.setText(song.title);
+        auri_artistTitle.setText(song.artist);
+        auri_favBtn.setImageResource(auri_isFavorite(song) ? AURI_FAV_ICON : AURI_FAV_OUTLINE_ICON);
+        try {
+            auri_mediaPlayer = MediaPlayer.create(this, song.uri);
+            if (auri_mediaPlayer != null) {
+                auri_seekBar.setMax(auri_mediaPlayer.getDuration());
+                auri_timeTotal.setText(auri_formatTime(auri_mediaPlayer.getDuration()));
+                auri_mediaPlayer.start();
+                auri_updateSeekBar();
+                auri_mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                    @Override
+                    public void onCompletion(MediaPlayer mp) {
+                        if (auri_isRepeat) {
+                            auri_playSong(auri_currentSongIndex);
+                        } else if (auri_isShuffle) {
+                            auri_currentSongIndex = (int) (Math.random() * auri_filteredSongList.size());
+                            auri_playSong(auri_currentSongIndex);
+                        } else {
+                            auri_nextBtn.performClick();
+                        }
+                    }
+                });
+            } else {
+                Toast.makeText(this, "Cannot play this song", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Error playing song: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+        // Highlight current song in list
+        ((BaseAdapter)auri_listView.getAdapter()).notifyDataSetChanged();
+    }
+
+    private void auri_stopPlayer() {
+        if (auri_mediaPlayer != null) {
+            try {
+                if (auri_mediaPlayer.isPlaying() || auri_isPaused) {
+                    auri_mediaPlayer.stop();
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                auri_mediaPlayer.release();
+            } catch (Exception e) {
+                // ignore
+            }
+            auri_mediaPlayer = null;
+            auri_seekBar.setProgress(0);
+            auri_timeCurrent.setText("00:00");
+            auri_isPaused = false;
+        }
+        if (auri_seekBarHandler != null && auri_seekBarRunnable != null) {
+            auri_seekBarHandler.removeCallbacks(auri_seekBarRunnable);
+        }
+    }
+
+    private void auri_updateSeekBar() {
+        if (auri_mediaPlayer == null) return;
+        auri_seekBar.setMax(auri_mediaPlayer.getDuration());
+        auri_timeTotal.setText(auri_formatTime(auri_mediaPlayer.getDuration()));
+        auri_seekBarRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (auri_mediaPlayer != null) {
+                    try {
+                        int pos = auri_mediaPlayer.getCurrentPosition();
+                        auri_seekBar.setProgress(pos);
+                        auri_timeCurrent.setText(auri_formatTime(pos));
+                        if (auri_mediaPlayer.isPlaying()) {
+                            auri_seekBarHandler.postDelayed(this, 500);
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
+        };
+        auri_seekBarHandler.post(auri_seekBarRunnable);
+    }
+
+    private String auri_formatTime(int millis) {
+        int seconds = millis / 1000;
+        int min = seconds / 60;
+        int sec = seconds % 60;
+        return String.format("%02d:%02d", min, sec);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        auri_stopPlayer();
+    }
+
+    public static class Song {
+        public String title;
+        public String artist;
+        public Uri uri;
+
+        public Song(String title, String artist, Uri uri) {
+            this.title = title;
+            this.artist = artist;
+            this.uri = uri;
+        }
+
+        @Override
+        public String toString() {
+            return title;
+        }
+    }
+
+    // Helper to make circular button backgrounds
+    private GradientDrawable makeCircleDrawable(String colorHex) {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(Color.parseColor(colorHex));
+        d.setStroke(3, Color.parseColor("#FFD369"));
+        return d;
+    }
+
+    // Helper to make ripple effect for buttons
+    private StateListDrawable makeRippleDrawable(String colorHex) {
+        GradientDrawable normal = makeCircleDrawable(colorHex);
+        GradientDrawable pressed = makeCircleDrawable("#FFD369");
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+        states.addState(new int[]{}, normal);
+        return states;
+    }
+
+    // Animate button press for modern feel
+    private void animateButton(View v) {
+        Animation anim = new AlphaAnimation(0.7f, 1.0f);
+        anim.setDuration(150);
+        v.startAnimation(anim);
+    }
+
+    // Animate list item selection
+    private void animateListItem(View v) {
+        Animation anim = new AlphaAnimation(0.5f, 1.0f);
+        anim.setDuration(200);
+        v.startAnimation(anim);
+    }
+
+    // --- New Features ---
+
+    // Favorite Songs
+    private boolean auri_isFavorite(Song song) {
+        String favs = auri_prefs.getString("favorites", "");
+        String key = song.title + "|" + song.artist;
+        return favs.contains(key);
+    }
+
+    private boolean auri_toggleFavorite(Song song) {
+        String favs = auri_prefs.getString("favorites", "");
+        String key = song.title + "|" + song.artist;
+        boolean isFav = favs.contains(key);
+        if (isFav) {
+            favs = favs.replace(key + ";", "");
+        } else {
+            favs += key + ";";
+        }
+        auri_prefs.edit().putString("favorites", favs).apply();
+        return !isFav;
+    }
+
+    private ArrayList<Song> auri_getFavoriteSongs() {
+        ArrayList<Song> favs = new ArrayList<Song>();
+        String favStr = auri_prefs.getString("favorites", "");
+        for (Song s : auri_songList) {
+            String key = s.title + "|" + s.artist;
+            if (favStr.contains(key)) {
+                favs.add(s);
+            }
+        }
+        return favs;
+    }
+
+    // Search
+    private void showSearchDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Search Songs");
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        builder.setView(input);
+        builder.setPositiveButton("Search", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String query = input.getText().toString().trim();
+                if (TextUtils.isEmpty(query)) {
+                    auri_updateFilteredSongList();
+                } else {
+                    ArrayList<Song> searchResults = new ArrayList<Song>();
+                    for (Song s : auri_filteredSongList) {
+                        if (s.title.toLowerCase().contains(query.toLowerCase()) || s.artist.toLowerCase().contains(query.toLowerCase())) {
+                            searchResults.add(s);
+                        }
+                    }
+                    auri_filteredSongList = searchResults;
+                }
+                auri_currentSongIndex = 0;
+                auri_updateSongListView();
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    // Playlist Management
+    private void showPlaylistMenu(View anchor) {
+        PopupMenu menu = new PopupMenu(this, anchor);
+        menu.getMenu().add("Create Playlist");
+        menu.getMenu().add("Delete Playlist");
+        menu.getMenu().add("Show Favorites");
+        menu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                String title = item.getTitle().toString();
+                if (title.equals("Create Playlist")) {
+                    showCreatePlaylistDialog();
+                } else if (title.equals("Delete Playlist")) {
+                    showDeletePlaylistDialog();
+                } else if (title.equals("Show Favorites")) {
+                    int favIdx = auri_playlists.indexOf("Favorites");
+                    if (favIdx == -1) {
+                        auri_playlists.add("Favorites");
+                        auri_playlistSongs.add(auri_getFavoriteSongs());
+                        ((BaseAdapter) auri_playlistSpinner.getAdapter()).notifyDataSetChanged();
+                        auri_playlistSpinner.setSelection(auri_playlists.size() - 1);
+                    } else {
+                        auri_playlistSpinner.setSelection(favIdx);
+                    }
+                }
+                return true;
+            }
+        });
+        menu.show();
+    }
+
+    private void showCreatePlaylistDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Create Playlist");
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        builder.setView(input);
+        builder.setPositiveButton("Create", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String name = input.getText().toString().trim();
+                if (!TextUtils.isEmpty(name) && !auri_playlists.contains(name)) {
+                    auri_playlists.add(name);
+                    auri_playlistSongs.add(new ArrayList<Song>());
+                    ((BaseAdapter) auri_playlistSpinner.getAdapter()).notifyDataSetChanged();
+                    auri_playlistSpinner.setSelection(auri_playlists.size() - 1);
+                } else {
+                    Toast.makeText(MainActivity.this, "Invalid or duplicate playlist name", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void showDeletePlaylistDialog() {
+        if (auri_playlists.size() <= 2) {
+            Toast.makeText(this, "No custom playlists to delete", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] customPlaylists = new String[auri_playlists.size() - 2];
+        for (int i = 2; i < auri_playlists.size(); i++) {
+            customPlaylists[i - 2] = auri_playlists.get(i);
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Delete Playlist");
+        builder.setItems(customPlaylists, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                int idx = which + 2;
+                auri_playlists.remove(idx);
+                auri_playlistSongs.remove(idx);
+                ((BaseAdapter) auri_playlistSpinner.getAdapter()).notifyDataSetChanged();
+                auri_playlistSpinner.setSelection(0);
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
+    private void showAddToPlaylistDialog(Song song) {
+        if (auri_playlists.size() <= 2) {
+            Toast.makeText(this, "No custom playlists. Create one first.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] customPlaylists = new String[auri_playlists.size() - 2];
+        for (int i = 2; i < auri_playlists.size(); i++) {
+            customPlaylists[i - 2] = auri_playlists.get(i);
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Add to Playlist");
+        builder.setItems(customPlaylists, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                int idx = which + 2;
+                ArrayList<Song> pl = auri_playlistSongs.get(idx);
+                if (!pl.contains(song)) {
+                    pl.add(song);
+                    Toast.makeText(MainActivity.this, "Added to " + auri_playlists.get(idx), Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(MainActivity.this, "Already in playlist", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+}
