@@ -1,0 +1,568 @@
+package com.example.beastmode;
+
+import android.app.DatePickerDialog;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.os.Bundle;
+import android.text.InputType;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.*;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
+import java.text.SimpleDateFormat;
+import java.util.*;
+
+public class MainActivity extends AppCompatActivity {
+
+    EditText etSteps, etCalories, etWorkout, etDuration, etNotes;
+    Button btnAdd, btnPickDate, btnClearAll;
+    ListView lvActivities;
+    ArrayList<ActivityEntry> activityList;
+    ActivityAdapter adapter;
+    TextView tvSummary, tvDate;
+    Calendar selectedDate;
+    LinearLayout statsCard;
+    ProgressBar stepsProgress, caloriesProgress;
+    final int STEPS_GOAL = 12000;
+    final int CALORIES_GOAL = 700;
+
+    // Futuristic, but not overly colorful palette
+    final String COLOR_PRIMARY = "#00FFC6";      // Neon Aqua
+    final String COLOR_ACCENT = "#1A2233";       // Deep Space Blue
+    final String COLOR_BG = "#10131A";           // Night Black-Blue
+    final String COLOR_CARD = "#181C26";         // Card background, slightly lighter
+    final String COLOR_TEXT = "#F4F4FB";         // Soft White
+    final String COLOR_SUBTLE = "#A0B3C6";       // Muted blue-gray
+    final String COLOR_STEPS = "#00FFC6";        // Neon Aqua
+    final String COLOR_CAL = "#FFB300";          // Gold
+    final String COLOR_DANGER = "#FF5252";       // Red
+    final String COLOR_INPUT_BG = "#23262F";     // Input field background
+    final String COLOR_SHADOW = "#1A2233";       // Shadow color
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Root layout
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setBackgroundColor(Color.parseColor(COLOR_BG));
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(36, 36, 36, 36);
+        scrollView.addView(root);
+
+        // App Title with subtitle
+        LinearLayout titleBlock = new LinearLayout(this);
+        titleBlock.setOrientation(LinearLayout.VERTICAL);
+        titleBlock.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView tvTitle = new TextView(this);
+        tvTitle.setText("Beastmode");
+        tvTitle.setTextSize(44);
+        tvTitle.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+        tvTitle.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvTitle.setShadowLayer(16, 0, 0, Color.parseColor(COLOR_ACCENT));
+        tvTitle.setGravity(Gravity.CENTER_HORIZONTAL);
+        tvTitle.setPadding(0, 0, 0, 2);
+
+        TextView tvSub = new TextView(this);
+        tvSub.setText("Unleash Your Potential");
+        tvSub.setTextSize(16);
+        tvSub.setTypeface(Typeface.create("sans-serif-light", Typeface.ITALIC));
+        tvSub.setTextColor(Color.parseColor(COLOR_SUBTLE));
+        tvSub.setGravity(Gravity.CENTER_HORIZONTAL);
+        tvSub.setPadding(0, 0, 0, 22);
+
+        titleBlock.addView(tvTitle);
+        titleBlock.addView(tvSub);
+        root.addView(titleBlock);
+
+        // Date Picker
+        CardView dateCard = new CardView(this);
+        dateCard.setCardBackgroundColor(Color.parseColor(COLOR_CARD));
+        dateCard.setRadius(32f);
+        dateCard.setCardElevation(12f);
+        LinearLayout.LayoutParams dateCardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        dateCardParams.setMargins(0, 0, 0, 28);
+        dateCard.setLayoutParams(dateCardParams);
+
+        LinearLayout dateRow = new LinearLayout(this);
+        dateRow.setOrientation(LinearLayout.HORIZONTAL);
+        dateRow.setGravity(Gravity.CENTER_VERTICAL);
+        dateRow.setPadding(32, 24, 32, 24);
+
+        tvDate = new TextView(this);
+        selectedDate = Calendar.getInstance();
+        tvDate.setText(getFormattedDate(selectedDate));
+        tvDate.setTextSize(19);
+        tvDate.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvDate.setTypeface(Typeface.DEFAULT_BOLD);
+        tvDate.setPadding(0, 0, 18, 0);
+
+        btnPickDate = new Button(this);
+        btnPickDate.setText("Change Date");
+        btnPickDate.setTextColor(Color.parseColor(COLOR_BG));
+        btnPickDate.setBackgroundColor(Color.parseColor(COLOR_PRIMARY));
+        btnPickDate.setTextSize(15);
+        btnPickDate.setAllCaps(false);
+        btnPickDate.setPadding(32, 12, 32, 12);
+
+        dateRow.addView(tvDate);
+        dateRow.addView(btnPickDate);
+        dateCard.addView(dateRow);
+        root.addView(dateCard);
+
+        btnPickDate.setOnClickListener(v -> {
+            Calendar now = Calendar.getInstance();
+            new DatePickerDialog(MainActivity.this, (view, year, month, dayOfMonth) -> {
+                selectedDate.set(year, month, dayOfMonth);
+                tvDate.setText(getFormattedDate(selectedDate));
+                loadActivitiesForDate();
+            }, selectedDate.get(Calendar.YEAR), selectedDate.get(Calendar.MONTH), selectedDate.get(Calendar.DAY_OF_MONTH)).show();
+        });
+
+        // Stats Card
+        CardView statsCardView = new CardView(this);
+        statsCardView.setCardBackgroundColor(Color.parseColor(COLOR_CARD));
+        statsCardView.setRadius(32f);
+        statsCardView.setCardElevation(14f);
+        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        statsParams.setMargins(0, 0, 0, 32);
+        statsCardView.setLayoutParams(statsParams);
+
+        statsCard = new LinearLayout(this);
+        statsCard.setOrientation(LinearLayout.VERTICAL);
+        statsCard.setPadding(36, 36, 36, 36);
+        statsCard.setGravity(Gravity.CENTER);
+
+        tvSummary = new TextView(this);
+        tvSummary.setText("Today's Total: 0 Steps | 0 Calories | 0 min");
+        tvSummary.setTextSize(20);
+        tvSummary.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvSummary.setTypeface(Typeface.DEFAULT_BOLD);
+        tvSummary.setGravity(Gravity.CENTER_HORIZONTAL);
+        tvSummary.setShadowLayer(7, 0, 0, Color.parseColor(COLOR_ACCENT));
+        tvSummary.setPadding(0, 0, 0, 18);
+        statsCard.addView(tvSummary);
+
+        // Steps Progress
+        LinearLayout stepsRow = new LinearLayout(this);
+        stepsRow.setOrientation(LinearLayout.HORIZONTAL);
+        stepsRow.setGravity(Gravity.CENTER_VERTICAL);
+        stepsRow.setPadding(0, 12, 0, 0);
+        ImageView stepsIcon = new ImageView(this);
+        stepsIcon.setImageResource(android.R.drawable.ic_dialog_info);
+        stepsIcon.setColorFilter(Color.parseColor(COLOR_STEPS));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(48, 48);
+        iconParams.setMargins(0, 0, 16, 0);
+        stepsRow.addView(stepsIcon, iconParams);
+
+        stepsProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        stepsProgress.setMax(STEPS_GOAL);
+        stepsProgress.setProgress(0);
+        stepsProgress.setScaleY(2.0f);
+        stepsProgress.setProgressDrawable(getResources().getDrawable(android.R.drawable.progress_horizontal));
+        stepsProgress.getProgressDrawable().setColorFilter(Color.parseColor(COLOR_STEPS), android.graphics.PorterDuff.Mode.SRC_IN);
+        stepsRow.addView(stepsProgress, new LinearLayout.LayoutParams(0, 32, 1f));
+
+        TextView stepsLabel = new TextView(this);
+        stepsLabel.setText("Steps");
+        stepsLabel.setTextColor(Color.parseColor(COLOR_STEPS));
+        stepsLabel.setTextSize(16);
+        stepsLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        stepsLabel.setPadding(16, 0, 0, 0);
+        stepsRow.addView(stepsLabel);
+
+        statsCard.addView(stepsRow);
+
+        // Calories Progress
+        LinearLayout calRow = new LinearLayout(this);
+        calRow.setOrientation(LinearLayout.HORIZONTAL);
+        calRow.setGravity(Gravity.CENTER_VERTICAL);
+        calRow.setPadding(0, 12, 0, 0);
+        ImageView calIcon = new ImageView(this);
+        calIcon.setImageResource(android.R.drawable.ic_menu_compass);
+        calIcon.setColorFilter(Color.parseColor(COLOR_CAL));
+        calRow.addView(calIcon, iconParams);
+
+        caloriesProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        caloriesProgress.setMax(CALORIES_GOAL);
+        caloriesProgress.setProgress(0);
+        caloriesProgress.setScaleY(2.0f);
+        caloriesProgress.setProgressDrawable(getResources().getDrawable(android.R.drawable.progress_horizontal));
+        caloriesProgress.getProgressDrawable().setColorFilter(Color.parseColor(COLOR_CAL), android.graphics.PorterDuff.Mode.SRC_IN);
+        calRow.addView(caloriesProgress, new LinearLayout.LayoutParams(0, 32, 1f));
+
+        TextView calLabel = new TextView(this);
+        calLabel.setText("Calories");
+        calLabel.setTextColor(Color.parseColor(COLOR_CAL));
+        calLabel.setTextSize(16);
+        calLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        calLabel.setPadding(16, 0, 0, 0);
+        calRow.addView(calLabel);
+
+        statsCard.addView(calRow);
+
+        statsCardView.addView(statsCard);
+        root.addView(statsCardView);
+
+        // Input Card
+        CardView inputCardView = new CardView(this);
+        inputCardView.setCardBackgroundColor(Color.parseColor(COLOR_CARD));
+        inputCardView.setRadius(32f);
+        inputCardView.setCardElevation(10f);
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        inputParams.setMargins(0, 0, 0, 32);
+        inputCardView.setLayoutParams(inputParams);
+
+        LinearLayout inputCard = new LinearLayout(this);
+        inputCard.setOrientation(LinearLayout.VERTICAL);
+        inputCard.setPadding(36, 36, 36, 36);
+
+        // Workout
+        etWorkout = new EditText(this);
+        etWorkout.setHint("Workout (e.g. HIIT, Yoga, Cycling)");
+        etWorkout.setTextSize(17);
+        etWorkout.setTextColor(Color.parseColor(COLOR_TEXT));
+        etWorkout.setHintTextColor(Color.parseColor(COLOR_SUBTLE));
+        etWorkout.setBackgroundResource(android.R.drawable.edit_text);
+        etWorkout.setPadding(28, 18, 28, 18);
+        etWorkout.setTypeface(Typeface.MONOSPACE);
+        LinearLayout.LayoutParams etParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        etParams.setMargins(0, 0, 0, 14);
+        etWorkout.setLayoutParams(etParams);
+        inputCard.addView(etWorkout);
+
+        // Steps
+        etSteps = new EditText(this);
+        etSteps.setHint("Steps Walked");
+        etSteps.setInputType(InputType.TYPE_CLASS_NUMBER);
+        etSteps.setTextSize(17);
+        etSteps.setTextColor(Color.parseColor(COLOR_TEXT));
+        etSteps.setHintTextColor(Color.parseColor(COLOR_SUBTLE));
+        etSteps.setBackgroundResource(android.R.drawable.edit_text);
+        etSteps.setPadding(28, 18, 28, 18);
+        etSteps.setTypeface(Typeface.MONOSPACE);
+        etSteps.setLayoutParams(etParams);
+        inputCard.addView(etSteps);
+
+        // Calories
+        etCalories = new EditText(this);
+        etCalories.setHint("Calories Burned");
+        etCalories.setInputType(InputType.TYPE_CLASS_NUMBER);
+        etCalories.setTextSize(17);
+        etCalories.setTextColor(Color.parseColor(COLOR_TEXT));
+        etCalories.setHintTextColor(Color.parseColor(COLOR_SUBTLE));
+        etCalories.setBackgroundResource(android.R.drawable.edit_text);
+        etCalories.setPadding(28, 18, 28, 18);
+        etCalories.setTypeface(Typeface.MONOSPACE);
+        etCalories.setLayoutParams(etParams);
+        inputCard.addView(etCalories);
+
+        // Duration
+        etDuration = new EditText(this);
+        etDuration.setHint("Duration (minutes)");
+        etDuration.setInputType(InputType.TYPE_CLASS_NUMBER);
+        etDuration.setTextSize(17);
+        etDuration.setTextColor(Color.parseColor(COLOR_TEXT));
+        etDuration.setHintTextColor(Color.parseColor(COLOR_SUBTLE));
+        etDuration.setBackgroundResource(android.R.drawable.edit_text);
+        etDuration.setPadding(28, 18, 28, 18);
+        etDuration.setTypeface(Typeface.MONOSPACE);
+        etDuration.setLayoutParams(etParams);
+        inputCard.addView(etDuration);
+
+        // Notes
+        etNotes = new EditText(this);
+        etNotes.setHint("Notes (optional)");
+        etNotes.setTextSize(17);
+        etNotes.setTextColor(Color.parseColor(COLOR_TEXT));
+        etNotes.setHintTextColor(Color.parseColor(COLOR_SUBTLE));
+        etNotes.setBackgroundResource(android.R.drawable.edit_text);
+        etNotes.setPadding(28, 18, 28, 18);
+        etNotes.setTypeface(Typeface.MONOSPACE);
+        etNotes.setLayoutParams(etParams);
+        inputCard.addView(etNotes);
+
+        // Add Button
+        btnAdd = new Button(this);
+        btnAdd.setText("Add Activity");
+        btnAdd.setTextSize(18);
+        btnAdd.setTextColor(Color.parseColor(COLOR_BG));
+        btnAdd.setBackgroundColor(Color.parseColor(COLOR_PRIMARY));
+        btnAdd.setAllCaps(false);
+        btnAdd.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        btnParams.setMargins(0, 18, 0, 0);
+        btnAdd.setLayoutParams(btnParams);
+        inputCard.addView(btnAdd);
+
+        inputCardView.addView(inputCard);
+        root.addView(inputCardView);
+
+        // Activities Label + Clear All
+        LinearLayout labelRow = new LinearLayout(this);
+        labelRow.setOrientation(LinearLayout.HORIZONTAL);
+        labelRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView tvListLabel = new TextView(this);
+        tvListLabel.setText("Activity Log");
+        tvListLabel.setTextSize(22);
+        tvListLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        tvListLabel.setTextColor(Color.parseColor(COLOR_PRIMARY));
+        tvListLabel.setShadowLayer(6, 0, 0, Color.parseColor(COLOR_ACCENT));
+        tvListLabel.setPadding(0, 0, 0, 14);
+        labelRow.addView(tvListLabel, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        btnClearAll = new Button(this);
+        btnClearAll.setText("Clear All");
+        btnClearAll.setTextColor(Color.parseColor(COLOR_TEXT));
+        btnClearAll.setBackgroundColor(Color.parseColor(COLOR_DANGER));
+        btnClearAll.setTextSize(14);
+        btnClearAll.setPadding(18, 0, 18, 0);
+        btnClearAll.setAllCaps(false);
+        labelRow.addView(btnClearAll);
+
+        root.addView(labelRow);
+
+        // ListView
+        lvActivities = new ListView(this);
+        lvActivities.setDividerHeight(0);
+        lvActivities.setBackgroundColor(Color.TRANSPARENT);
+        LinearLayout.LayoutParams lvParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        );
+        lvActivities.setLayoutParams(lvParams);
+        root.addView(lvActivities);
+
+        setContentView(scrollView);
+
+        // Data
+        activityList = new ArrayList<>();
+        adapter = new ActivityAdapter();
+        lvActivities.setAdapter(adapter);
+
+        btnAdd.setOnClickListener(v -> {
+            String steps = etSteps.getText().toString().trim();
+            String calories = etCalories.getText().toString().trim();
+            String workout = etWorkout.getText().toString().trim();
+            String duration = etDuration.getText().toString().trim();
+            String notes = etNotes.getText().toString().trim();
+
+            if (steps.isEmpty() && calories.isEmpty() && workout.isEmpty() && duration.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Please enter at least one field", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            ActivityEntry entry = new ActivityEntry();
+            entry.date = getFormattedDate(selectedDate);
+            entry.workout = workout.isEmpty() ? "Activity" : workout;
+            entry.steps = steps.isEmpty() ? 0 : Integer.parseInt(steps);
+            entry.calories = calories.isEmpty() ? 0 : Integer.parseInt(calories);
+            entry.duration = duration.isEmpty() ? 0 : Integer.parseInt(duration);
+            entry.notes = notes;
+
+            activityList.add(0, entry);
+            adapter.notifyDataSetChanged();
+
+            etSteps.setText("");
+            etCalories.setText("");
+            etWorkout.setText("");
+            etDuration.setText("");
+            etNotes.setText("");
+
+            updateSummary();
+        });
+
+        lvActivities.setOnItemLongClickListener((parent, view, position, id) -> {
+            ActivityEntry entry = adapter.getItem(position);
+            activityList.remove(entry);
+            adapter.notifyDataSetChanged();
+            updateSummary();
+            Toast.makeText(MainActivity.this, "Activity removed", Toast.LENGTH_SHORT).show();
+            return true;
+        });
+
+        btnClearAll.setOnClickListener(v -> {
+            activityList.clear();
+            adapter.notifyDataSetChanged();
+            updateSummary();
+            Toast.makeText(MainActivity.this, "All activities cleared", Toast.LENGTH_SHORT).show();
+        });
+
+        loadActivitiesForDate();
+    }
+
+    private void loadActivitiesForDate() {
+        // In-memory only: filter by date
+        // In a real app, you'd persist and filter by date
+        // Here, we just clear and keep only today's entries
+        String today = getFormattedDate(selectedDate);
+        ArrayList<ActivityEntry> filtered = new ArrayList<>();
+        for (ActivityEntry e : activityList) {
+            if (e.date.equals(today)) filtered.add(e);
+        }
+        activityList.clear();
+        activityList.addAll(filtered);
+        if (adapter != null) adapter.notifyDataSetChanged();
+        updateSummary();
+    }
+
+    private void updateSummary() {
+        int totalSteps = 0, totalCalories = 0, totalDuration = 0;
+        for (ActivityEntry entry : activityList) {
+            totalSteps += entry.steps;
+            totalCalories += entry.calories;
+            totalDuration += entry.duration;
+        }
+        tvSummary.setText("Today's Total: " + totalSteps + " Steps | " + totalCalories + " Calories | " + totalDuration + " min");
+        stepsProgress.setProgress(Math.min(totalSteps, STEPS_GOAL));
+        caloriesProgress.setProgress(Math.min(totalCalories, CALORIES_GOAL));
+    }
+
+    private String getFormattedDate(Calendar cal) {
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault());
+        return sdf.format(cal.getTime());
+    }
+
+    // Data class
+    static class ActivityEntry {
+        String date;
+        String workout;
+        int steps;
+        int calories;
+        int duration;
+        String notes;
+    }
+
+    // Custom Adapter for better UI
+    class ActivityAdapter extends BaseAdapter {
+
+        @Override
+        public int getCount() {
+            return activityList.size();
+        }
+
+        @Override
+        public ActivityEntry getItem(int position) {
+            return activityList.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            CardView card = new CardView(MainActivity.this);
+            card.setCardBackgroundColor(Color.parseColor(COLOR_CARD));
+            card.setRadius(28f);
+            card.setCardElevation(10f);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            cardParams.setMargins(0, 0, 0, 24);
+            card.setLayoutParams(cardParams);
+
+            LinearLayout item = new LinearLayout(MainActivity.this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(36, 28, 36, 28);
+
+            ActivityEntry entry = getItem(position);
+
+            // Top row: Workout + Duration
+            LinearLayout topRow = new LinearLayout(MainActivity.this);
+            topRow.setOrientation(LinearLayout.HORIZONTAL);
+            topRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView tvWorkout = new TextView(MainActivity.this);
+            tvWorkout.setText(entry.workout);
+            tvWorkout.setTextColor(Color.parseColor(COLOR_PRIMARY));
+            tvWorkout.setTextSize(20);
+            tvWorkout.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            tvWorkout.setShadowLayer(6, 0, 0, Color.parseColor(COLOR_ACCENT));
+            tvWorkout.setPadding(0, 0, 18, 0);
+
+            TextView tvDuration = new TextView(MainActivity.this);
+            tvDuration.setText(entry.duration > 0 ? entry.duration + " min" : "");
+            tvDuration.setTextColor(Color.parseColor(COLOR_CAL));
+            tvDuration.setTextSize(16);
+            tvDuration.setTypeface(Typeface.DEFAULT_BOLD);
+
+            topRow.addView(tvWorkout);
+            topRow.addView(tvDuration);
+
+            item.addView(topRow);
+
+            // Second row: Steps, Calories
+            LinearLayout statsRow = new LinearLayout(MainActivity.this);
+            statsRow.setOrientation(LinearLayout.HORIZONTAL);
+            statsRow.setGravity(Gravity.START);
+
+            if (entry.steps > 0) {
+                TextView tvSteps = new TextView(MainActivity.this);
+                tvSteps.setText("👟 " + entry.steps + " steps");
+                tvSteps.setTextColor(Color.parseColor(COLOR_STEPS));
+                tvSteps.setTextSize(16);
+                tvSteps.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+                tvSteps.setPadding(0, 10, 36, 0);
+                statsRow.addView(tvSteps);
+            }
+            if (entry.calories > 0) {
+                TextView tvCal = new TextView(MainActivity.this);
+                tvCal.setText("🔥 " + entry.calories + " kcal");
+                tvCal.setTextColor(Color.parseColor(COLOR_CAL));
+                tvCal.setTextSize(16);
+                tvCal.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+                tvCal.setPadding(0, 10, 36, 0);
+                statsRow.addView(tvCal);
+            }
+            item.addView(statsRow);
+
+            // Notes
+            if (entry.notes != null && !entry.notes.trim().isEmpty()) {
+                TextView tvNotes = new TextView(MainActivity.this);
+                tvNotes.setText("📝 " + entry.notes);
+                tvNotes.setTextColor(Color.parseColor(COLOR_SUBTLE));
+                tvNotes.setTextSize(15);
+                tvNotes.setPadding(0, 10, 0, 0);
+                item.addView(tvNotes);
+            }
+
+            // Date (for clarity, show if not today)
+            String today = getFormattedDate(Calendar.getInstance());
+            if (!entry.date.equals(today)) {
+                TextView tvDate = new TextView(MainActivity.this);
+                tvDate.setText(entry.date);
+                tvDate.setTextColor(Color.parseColor(COLOR_SUBTLE));
+                tvDate.setTextSize(13);
+                tvDate.setPadding(0, 8, 0, 0);
+                item.addView(tvDate);
+            }
+
+            card.addView(item);
+            return card;
+        }
+    }
+}
